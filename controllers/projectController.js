@@ -1,4 +1,4 @@
-import Project from "../models/project.js";
+import Project from "../models/projectModel.js";
 import cloudinary from "../config/cloudinary.js";
 
 // CREATE: Upload a new project

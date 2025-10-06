@@ -4,6 +4,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 import projectRoutes from "./routes/projectRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -13,6 +14,7 @@ app.use(express.json());
 
 app.use("/projects", projectRoutes);
 app.use("/chat", chatRoutes);
+app.use("/reports", reportRoutes);
 
 const connectDB = async () => {
   try {
