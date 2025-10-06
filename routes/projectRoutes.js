@@ -5,6 +5,7 @@ import {
   getProjectById,
   updateProject,
   deleteProject,
+  viewProject,
 } from "../controllers/projectController.js";
 import upload from "../config/multer.js";
 
@@ -22,5 +23,8 @@ router.patch("/:id", updateProject);
 
 // DELETE: DELETE /projects/:id
 router.delete("/:id", deleteProject);
+
+// 2. Add the new route for viewing the project
+router.get("/:id/view", viewProject);
 
 export default router;

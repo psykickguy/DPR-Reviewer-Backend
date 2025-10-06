@@ -86,3 +86,18 @@ export const deleteProject = async (req, res) => {
     res.status(500).json({ message: "Server error.", error: error.message });
   }
 };
+
+// VIEW: Find a project and redirect to its Cloudinary URL
+export const viewProject = async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found." });
+    }
+
+    // Redirect the client to the project's public URL
+    return res.redirect(project.cloudinaryUrl);
+  } catch (error) {
+    res.status(500).json({ message: "Server error.", error: error.message });
+  }
+};
