@@ -3,13 +3,39 @@ import mongoose from "mongoose";
 const reportSchema = new mongoose.Schema({
   project: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "File", // IMPORTANT: Change 'File' to your actual project model name if different
+    ref: "Project", // Corrected the ref to 'Project'
     required: true,
   },
   summary: {
     type: String,
     required: true,
   },
+  // --- NEW FIELDS ---
+  riskPercentage: {
+    type: Number,
+    required: false,
+  },
+  riskAnalysis: {
+    clauses: [
+      {
+        text: String,
+        riskLevel: String,
+        explanation: String,
+      },
+    ],
+    financials: {
+      costs: [Number],
+      quotes: [Number],
+    },
+    entities: {
+      contractors: [String],
+    },
+  },
+  backgroundResearch: { // For background research results
+    type: String,
+    required: false,
+  },
+  // --- END NEW FIELDS ---
   originalFilename: {
     type: String,
     required: true,
