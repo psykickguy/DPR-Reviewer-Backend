@@ -157,8 +157,15 @@ export const analyzeDocument = async (textToAnalyze) => {
     }
 
     const data = await response.json();
-    // The response will be a JSON string, so we need to parse it
-    return JSON.parse(data.choices[0]?.message?.content);
+    let content = data.choices[0]?.message?.content;
+
+    // --- CONFLICT RESOLVED ---
+    // Clean the string of markdown formatting before parsing
+    const cleanedContent = content.replace(/^```json\s*|```$/g, "");
+
+    // Parse the cleaned string
+    return JSON.parse(cleanedContent);
+    // --- END OF FIX ---
   } catch (error) {
     console.error("Error during document analysis:", error);
     throw new Error("Failed to analyze document from the AI service.");
