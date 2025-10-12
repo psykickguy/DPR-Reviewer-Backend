@@ -261,3 +261,86 @@ export const checkCompliance = async (textToAnalyze) => {
     throw new Error("Failed to get compliance analysis from the AI service.");
   }
 };
+
+export const detectInconsistencies = async (textToAnalyze) => {
+  if (!process.env.A4F_API_KEY) {
+    throw new Error("A4F_API_KEY is not defined in the .env file.");
+  }
+  if (!textToAnalyze || textToAnalyze.trim() === "") {
+    return { inconsistencies: [] }; // Return empty array if no text
+  }
+
+  const maxChars = 15000;
+  const truncatedText =
+    textToAnalyze.length > maxChars
+      ? textToAnalyze.substring(0, maxChars)
+      : textToAnalyze;
+
+  const inconsistencyPrompt = `
+    You are a forensic auditor reviewing a Detailed Project Report (DPR). Your task is to identify internal inconsistencies within the document.
+
+    **Look for these types of inconsistencies:**
+    1.  **Financial Mismatches:** Does a total cost figure in one section conflict with the sum of itemized costs in another? Does the stated funding cover the total estimated cost?
+    2.  **Unrealistic Timelines:** Does the project timeline seem too short for the described scope of work (e.g., building many complex structures in a few months)?
+    3.  **Scope vs. Resources:** Does the described manpower, budget, or equipment seem insufficient for the project's stated goals?
+    4.  **Contradictory Statements:** Does information in one part of the document directly contradict information in another part?
+
+    **DPR TEXT TO ANALYZE:**
+    """
+    ${truncatedText}
+    """
+
+    **Your Task:**
+    Based on the DPR text, provide a JSON response. If you find one or more clear inconsistencies, list them. **If you find no significant inconsistencies, return an empty array for the "inconsistencies" field.**
+
+    **JSON OUTPUT STRUCTURE:**
+    {
+      "inconsistencies": [
+        {
+          "finding": "<A brief title for the inconsistency found>",
+          "evidence": "<Quote the conflicting pieces of text from the DPR>",
+          "explanation": "<Explain why these pieces of information are inconsistent>",
+          "severity": "<'High', 'Medium', or 'Low'>"
+        }
+      ]
+    }
+  `;
+
+  try {
+    const response = await fetch("https://api.a4f.co/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.A4F_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "provider-3/gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a forensic auditor. Your output must be a valid JSON object.",
+          },
+          { role: "user", content: inconsistencyPrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(
+        `API request failed with status ${response.status}: ${errorData}`
+      );
+    }
+    const data = await response.json();
+    const rawContent = data.choices[0]?.message?.content;
+    const jsonString = rawContent.replace(/^```json\s*|```$/g, "");
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error("Error during inconsistency detection:", error);
+    throw new Error(
+      "Failed to get inconsistency analysis from the AI service."
+    );
+  }
+};

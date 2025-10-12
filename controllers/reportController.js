@@ -1,10 +1,12 @@
 import Report from "../models/reportModel.js";
+import Note from "../models/noteModel.js";
 import { extractContent } from "../utils/textExtractor.js";
 // Import the new analyzer and the old summarizer
 import {
   analyzeDocument,
   summarizeText,
   checkCompliance,
+  detectInconsistencies,
 } from "../utils/aiService.js";
 
 // You would also need a web search utility for background checks
@@ -37,11 +39,13 @@ export const generateReport = async (req, res) => {
       "Starting summary, analysis, and compliance check in parallel..."
     );
 
-    const [analysisResult, summary, complianceResult] = await Promise.all([
-      analyzeDocument(textToProcess),
-      summarizeText(textToProcess),
-      checkCompliance(textToProcess), // Add the new compliance check
-    ]);
+    const [analysisResult, summary, complianceResult, inconsistencyResult] =
+      await Promise.all([
+        analyzeDocument(textToProcess),
+        summarizeText(textToProcess),
+        checkCompliance(textToProcess),
+        detectInconsistencies(textToProcess),
+      ]);
 
     // console.log(
     //   "----------\nRAW COMPLIANCE RESULT:\n",
@@ -77,6 +81,10 @@ export const generateReport = async (req, res) => {
       complianceFindings: complianceResult.complianceFindings,
     });
 
+    if (inconsistencyResult && inconsistencyResult.inconsistencies.length > 0) {
+      newReport.inconsistencyFindings = inconsistencyResult.inconsistencies;
+    }
+
     await newReport.save();
 
     res.status(201).json({
@@ -86,5 +94,38 @@ export const generateReport = async (req, res) => {
   } catch (error) {
     console.error("Report generation failed:", error.message);
     res.status(500).json({ message: "Server error during report generation." });
+  }
+};
+
+export const addNoteToReport = async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { text, author } = req.body;
+
+    // 1. Find the parent report to make sure it exists
+    const report = await Report.findById(reportId);
+    if (!report) {
+      return res.status(404).json({ message: "Report not found." });
+    }
+
+    // 2. Create the new note
+    const newNote = new Note({
+      text,
+      author, // This can be made more robust with user authentication later
+      report: reportId,
+    });
+    await newNote.save();
+
+    // 3. Link the new note to the report by adding its ID to the 'notes' array
+    report.notes.push(newNote._id);
+    await report.save();
+
+    res.status(201).json({
+      message: "Note added successfully!",
+      data: newNote,
+    });
+  } catch (error) {
+    console.error("Error adding note:", error.message);
+    res.status(500).json({ message: "Server error while adding note." });
   }
 };

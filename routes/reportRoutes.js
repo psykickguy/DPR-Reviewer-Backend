@@ -1,6 +1,9 @@
 import express from "express";
 import multer from "multer";
-import { generateReport } from "../controllers/reportController.js";
+import {
+  generateReport,
+  addNoteToReport,
+} from "../controllers/reportController.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -11,5 +14,7 @@ router.post(
   upload.single("reportFile"),
   generateReport
 );
+
+router.post("/:reportId/notes", addNoteToReport);
 
 export default router;

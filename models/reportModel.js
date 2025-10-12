@@ -48,6 +48,25 @@ const reportSchema = new mongoose.Schema({
     },
   ],
 
+  // --- NEW INCONSISTENCY FIELD ---
+  inconsistencyFindings: [
+    {
+      finding: String,
+      evidence: String,
+      explanation: String,
+      severity: String,
+    },
+  ],
+
+  // --- 💡 ADD THIS NEW FIELD ---
+  // This will store an array of IDs that point to documents in the 'Note' collection
+  notes: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Note",
+    },
+  ],
+
   // --- END NEW FIELDS ---
   originalFilename: {
     type: String,
