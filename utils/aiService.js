@@ -1,16 +1,12 @@
 import "dotenv/config";
 
 export const getChatResponse = async (userMessage) => {
-  // Check for the API key in environment variables
   if (!process.env.A4F_API_KEY) {
     throw new Error("A4F_API_KEY is not defined in the .env file.");
   }
-
-  // Check for an empty user message
   if (!userMessage) {
     throw new Error("User message cannot be empty.");
   }
-
   try {
     const response = await fetch("https://api.a4f.co/v1/chat/completions", {
       method: "POST",
@@ -23,15 +19,12 @@ export const getChatResponse = async (userMessage) => {
         messages: [{ role: "user", content: userMessage }],
       }),
     });
-
     if (!response.ok) {
-      // Handle non-successful HTTP responses
       const errorData = await response.text();
       throw new Error(
         `API request failed with status ${response.status}: ${errorData}`
       );
     }
-
     const data = await response.json();
     return data.choices[0]?.message?.content || "No response content from AI.";
   } catch (error) {
@@ -44,18 +37,14 @@ export const summarizeText = async (textToSummarize) => {
   if (!process.env.A4F_API_KEY) {
     throw new Error("A4F_API_KEY is not defined in the .env file.");
   }
-
   if (!textToSummarize || textToSummarize.trim() === "") {
     return "No text content provided to summarize.";
   }
-
-  // Truncate long texts to avoid exceeding API limits
   const maxChars = 15000;
   const truncatedText =
     textToSummarize.length > maxChars
       ? textToSummarize.substring(0, maxChars)
       : textToSummarize;
-
   try {
     const response = await fetch("https://api.a4f.co/v1/chat/completions", {
       method: "POST",
@@ -64,7 +53,7 @@ export const summarizeText = async (textToSummarize) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "provider-3/gpt-4o-mini", // Or another model you prefer
+        model: "provider-3/gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -78,14 +67,12 @@ export const summarizeText = async (textToSummarize) => {
         ],
       }),
     });
-
     if (!response.ok) {
       const errorData = await response.text();
       throw new Error(
         `API request failed with status ${response.status}: ${errorData}`
       );
     }
-
     const data = await response.json();
     return data.choices[0]?.message?.content || "Could not generate summary.";
   } catch (error) {
@@ -109,7 +96,6 @@ export const analyzeDocument = async (textToAnalyze) => {
       ? textToAnalyze.substring(0, maxChars)
       : textToAnalyze;
 
-  // This is the new, powerful prompt!
   const analysisPrompt = `
     Analyze the following document text and provide a JSON response.
     Identify key clauses and categorize them by risk level.
@@ -154,25 +140,124 @@ export const analyzeDocument = async (textToAnalyze) => {
         messages: [
           {
             role: "system",
-            content: "You are an expert contract and project document analyzer. Your output must be a valid JSON object.",
+            content:
+              "You are an expert contract and project document analyzer. Your output must be a valid JSON object.",
           },
           { role: "user", content: analysisPrompt },
         ],
-        // Important: Ensure the model outputs JSON
         response_format: { type: "json_object" },
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      throw new Error(`API request failed with status ${response.status}: ${errorData}`);
+      throw new Error(
+        `API request failed with status ${response.status}: ${errorData}`
+      );
     }
 
     const data = await response.json();
-    // The response will be a JSON string, so we need to parse it
-    return JSON.parse(data.choices[0]?.message?.content);
+    let content = data.choices[0]?.message?.content;
+
+    // --- THIS IS THE FIX ---
+    // Clean the string of markdown formatting before parsing
+    const cleanedContent = content.replace(/^```json\s*|```$/g, "");
+
+    // Parse the cleaned string
+    return JSON.parse(cleanedContent);
+    // --- END OF FIX ---
   } catch (error) {
     console.error("Error during document analysis:", error);
     throw new Error("Failed to analyze document from the AI service.");
+  }
+};
+
+export const checkCompliance = async (textToAnalyze) => {
+  if (!process.env.A4F_API_KEY) {
+    throw new Error("A4F_API_KEY is not defined in the .env file.");
+  }
+  if (!textToAnalyze || textToAnalyze.trim() === "") {
+    return { error: "No text provided for compliance check." };
+  }
+
+  const maxChars = 15000;
+  const truncatedText =
+    textToAnalyze.length > maxChars
+      ? textToAnalyze.substring(0, maxChars)
+      : textToAnalyze;
+
+  const compliancePrompt = `
+    You are an expert auditor for Indian government infrastructure projects. Your task is to analyze the following Detailed Project Report (DPR) text for compliance with the key principles of the Department of Expenditure (DoE) guidelines.
+
+    **DoE Guideline Principles Checklist:**
+    1.  **Clear Objectives:** Does the DPR clearly state the project's goals and outcomes?
+    2.  **Cost-Benefit Analysis:** Is there a clear analysis of expected economic and social benefits versus the costs?
+    3.  **Realistic Timelines:** Are the project timelines and phases clearly defined and plausible?
+    4.  **Risk Mitigation Plan:** Does the DPR identify potential risks (financial, environmental, social) and propose a mitigation plan?
+    5.  **Stakeholder Identification:** Are the key stakeholders (implementing agencies, beneficiaries, etc.) clearly identified?
+    6.  **Financial Viability:** Are the cost estimates detailed and the funding sources clearly mentioned?
+
+    **DPR TEXT TO ANALYZE:**
+    """
+    ${truncatedText}
+    """
+
+    **Your Task:**
+    Based on the DPR text, provide a JSON response. For each guideline principle, determine if the DPR is compliant, partially compliant, or non-compliant, and provide a brief justification with evidence from the text. Finally, calculate an overall compliance score from 0 to 100.
+
+    **JSON OUTPUT STRUCTURE:**
+    {
+      "complianceScore": <A number from 0 to 100>,
+      "complianceSummary": "<A brief summary of the overall compliance level>",
+      "complianceFindings": [
+        {
+          "guideline": "<The DoE guideline principle being checked>",
+          "status": "<'Compliant', 'Partially Compliant', or 'Non-Compliant'>",
+          "justification": "<Your reasoning, with evidence from the DPR text>"
+        }
+      ]
+    }
+  `;
+
+  try {
+    const response = await fetch("https://api.a4f.co/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.A4F_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "provider-3/gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an expert auditor. Your output must be a valid JSON object.",
+          },
+          { role: "user", content: compliancePrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(
+        `API request failed with status ${response.status}: ${errorData}`
+      );
+    }
+    const data = await response.json();
+    const rawContent = data.choices[0]?.message?.content;
+
+    // --- 💡 THIS IS THE FIX ---
+    // Clean the string of markdown formatting
+    const jsonString = rawContent.replace(/^```json\s*|```$/g, "");
+
+    // Parse the cleaned string to return a true object
+    return JSON.parse(jsonString);
+    // --- END OF FIX ---
+  } catch (error) {
+    console.error("Error during compliance check:", error);
+    throw new Error("Failed to get compliance analysis from the AI service.");
   }
 };

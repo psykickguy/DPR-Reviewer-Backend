@@ -31,10 +31,23 @@ const reportSchema = new mongoose.Schema({
       contractors: [String],
     },
   },
-  backgroundResearch: { // For background research results
+  backgroundResearch: {
+    // For background research results
     type: String,
     required: false,
   },
+
+  complianceScore: {
+    type: Number,
+  },
+  complianceFindings: [
+    {
+      guideline: String,
+      status: String,
+      justification: String,
+    },
+  ],
+
   // --- END NEW FIELDS ---
   originalFilename: {
     type: String,

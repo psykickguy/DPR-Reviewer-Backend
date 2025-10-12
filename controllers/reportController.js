@@ -1,7 +1,11 @@
 import Report from "../models/reportModel.js";
 import { extractContent } from "../utils/textExtractor.js";
 // Import the new analyzer and the old summarizer
-import { analyzeDocument, summarizeText } from "../utils/aiService.js";
+import {
+  analyzeDocument,
+  summarizeText,
+  checkCompliance,
+} from "../utils/aiService.js";
 
 // You would also need a web search utility for background checks
 // For example, a new file `utils/webSearch.js`
@@ -28,11 +32,24 @@ export const generateReport = async (req, res) => {
         .json({ message: "Failed to extract readable text from the file." });
     }
 
-    // 2. Perform the new deep analysis using AI
-    const analysisResult = await analyzeDocument(textToProcess);
-    
-    // Also generate a simple summary like before
-    const summary = await summarizeText(textToProcess);
+    // 2. Perform all AI tasks in parallel
+    console.log(
+      "Starting summary, analysis, and compliance check in parallel..."
+    );
+
+    const [analysisResult, summary, complianceResult] = await Promise.all([
+      analyzeDocument(textToProcess),
+      summarizeText(textToProcess),
+      checkCompliance(textToProcess), // Add the new compliance check
+    ]);
+
+    // console.log(
+    //   "----------\nRAW COMPLIANCE RESULT:\n",
+    //   complianceResult,
+    //   "\n----------"
+    // );
+
+    console.log("AI tasks completed.");
 
     // 3. (Optional but recommended) Perform background research
     // let backgroundInfo = "No contractors found to research.";
@@ -55,7 +72,9 @@ export const generateReport = async (req, res) => {
         financials: analysisResult.financials,
         entities: analysisResult.entities,
       },
-      // backgroundResearch: backgroundInfo,
+      // --- SAVE NEW COMPLIANCE DATA ---
+      complianceScore: complianceResult.complianceScore,
+      complianceFindings: complianceResult.complianceFindings,
     });
 
     await newReport.save();
