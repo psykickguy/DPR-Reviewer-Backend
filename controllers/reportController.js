@@ -97,6 +97,94 @@ export const generateReport = async (req, res) => {
   }
 };
 
+// GET a single report by ID (with notes populated)
+export const getReportById = async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id).populate("notes");
+    if (!report) {
+      return res.status(404).json({ message: "Report not found." });
+    }
+    res
+      .status(200)
+      .json({ message: "Report fetched successfully!", data: report });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while fetching report." });
+  }
+};
+
+// GET all reports with filtering, sorting, and searching
+export const getAllReports = async (req, res) => {
+  try {
+    const { status, sortBy, search } = req.query;
+    let query = {};
+
+    // 1. Filtering by status
+    if (status) {
+      query.status = status; // e.g., /reports?status=Completed
+    }
+
+    // 2. Searching by original filename
+    if (search) {
+      // Creates a case-insensitive regex search
+      query.originalFilename = { $regex: search, $options: "i" }; // e.g., /reports?search=national
+    }
+
+    // 3. Sorting
+    let sortOption = { createdAt: -1 }; // Default sort by newest
+    if (sortBy === "oldest") {
+      sortOption = { createdAt: 1 }; // e.g., /reports?sortBy=oldest
+    }
+
+    const reports = await Report.find(query).sort(sortOption);
+    res.status(200).json({
+      message: "Reports fetched successfully!",
+      count: reports.length,
+      data: reports,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while fetching reports." });
+  }
+};
+
+// UPDATE a report (e.g., change its status)
+export const updateReport = async (req, res) => {
+  try {
+    const updatedReport = await Report.findByIdAndUpdate(
+      req.params.id,
+      req.body, // Allows updating fields like 'status' from the request body
+      { new: true, runValidators: true }
+    );
+    if (!updatedReport) {
+      return res.status(404).json({ message: "Report not found." });
+    }
+    res.status(200).json({
+      message: "Report updated successfully!",
+      data: updatedReport,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while updating report." });
+  }
+};
+
+// DELETE a report
+export const deleteReport = async (req, res) => {
+  try {
+    // Note: This only deletes the report record, not the associated file in Cloudinary
+    // A more robust delete would also find and delete the Cloudinary file
+    const report = await Report.findByIdAndDelete(req.params.id);
+    if (!report) {
+      return res.status(404).json({ message: "Report not found." });
+    }
+    // Also delete all notes associated with this report
+    await Note.deleteMany({ report: req.params.id });
+    res
+      .status(200)
+      .json({ message: "Report and associated notes deleted successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while deleting report." });
+  }
+};
+
 export const addNoteToReport = async (req, res) => {
   try {
     const { reportId } = req.params;
@@ -127,5 +215,61 @@ export const addNoteToReport = async (req, res) => {
   } catch (error) {
     console.error("Error adding note:", error.message);
     res.status(500).json({ message: "Server error while adding note." });
+  }
+};
+
+// GET all notes for a specific report
+export const getNotesForReport = async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const notes = await Note.find({ report: reportId }).sort({ createdAt: -1 });
+    res.status(200).json({
+      message: "Notes fetched successfully!",
+      data: notes,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while fetching notes." });
+  }
+};
+
+// UPDATE a specific note by its ID
+export const updateNote = async (req, res) => {
+  try {
+    const { noteId } = req.params;
+    const { text } = req.body;
+    const updatedNote = await Note.findByIdAndUpdate(
+      noteId,
+      { text },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedNote) {
+      return res.status(404).json({ message: "Note not found." });
+    }
+    res.status(200).json({
+      message: "Note updated successfully!",
+      data: updatedNote,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while updating note." });
+  }
+};
+
+// DELETE a specific note by its ID
+export const deleteNote = async (req, res) => {
+  try {
+    const { noteId } = req.params;
+    const note = await Note.findByIdAndDelete(noteId);
+
+    if (!note) {
+      return res.status(404).json({ message: "Note not found." });
+    }
+
+    // Also remove the note's ID from the parent report's 'notes' array
+    await Report.findByIdAndUpdate(note.report, { $pull: { notes: noteId } });
+
+    res.status(200).json({ message: "Note deleted successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while deleting note." });
   }
 };
