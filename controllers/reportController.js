@@ -372,24 +372,27 @@ export const getAllReports = async (req, res) => {
     const { status, sortBy, search } = req.query;
     let query = {};
 
-    // 1. Filtering by status
     if (status) {
-      query.status = status; // e.g., /reports?status=Completed
+      query.status = status;
     }
 
-    // 2. Searching by original filename
+    // This search is on the report's original filename.
+    // A more advanced search could query the populated Project data.
     if (search) {
-      // Creates a case-insensitive regex search
-      query.originalFilename = { $regex: search, $options: "i" }; // e.g., /reports?search=national
+      query.originalFilename = { $regex: search, $options: "i" };
     }
 
-    // 3. Sorting
-    let sortOption = { createdAt: -1 }; // Default sort by newest
+    let sortOption = { createdAt: -1 };
     if (sortBy === "oldest") {
-      sortOption = { createdAt: 1 }; // e.g., /reports?sortBy=oldest
+      sortOption = { createdAt: 1 };
     }
 
-    const reports = await Report.find(query).sort(sortOption);
+    // --- ENHANCEMENT ---
+    // Populate the 'project' field to include project details in the response
+    const reports = await Report.find(query)
+      .populate("project") // <-- This is the key change
+      .sort(sortOption);
+
     res.status(200).json({
       message: "Reports fetched successfully!",
       count: reports.length,
@@ -400,17 +403,37 @@ export const getAllReports = async (req, res) => {
   }
 };
 
-// UPDATE a report (e.g., change its status)
+// UPDATE a report (e.g., change status or progress)
 export const updateReport = async (req, res) => {
   try {
+    const { id } = req.params;
+    // Only allow specific fields to be updated to prevent unwanted changes
+    const { status, progress } = req.body;
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (progress !== undefined) updateData.progress = progress;
+
+
     const updatedReport = await Report.findByIdAndUpdate(
-      req.params.id,
-      req.body, // Allows updating fields like 'status' from the request body
+      id,
+      { $set: updateData },
       { new: true, runValidators: true }
     );
+
     if (!updatedReport) {
       return res.status(404).json({ message: "Report not found." });
     }
+
+    // If progress was updated, add a timeline event
+    if (progress !== undefined) {
+      updatedReport.timelineEvents.push({
+        eventName: "Progress Updated",
+        description: `Progress set to ${progress}%`,
+      });
+      await updatedReport.save();
+    }
+
+
     res.status(200).json({
       message: "Report updated successfully!",
       data: updatedReport,
@@ -419,6 +442,7 @@ export const updateReport = async (req, res) => {
     res.status(500).json({ message: "Server error while updating report." });
   }
 };
+
 
 // DELETE a report
 export const deleteReport = async (req, res) => {
@@ -436,6 +460,48 @@ export const deleteReport = async (req, res) => {
       .json({ message: "Report and associated notes deleted successfully!" });
   } catch (error) {
     res.status(500).json({ message: "Server error while deleting report." });
+  }
+};
+
+// ADD a timeline event to a report
+export const addTimelineEvent = async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { eventName, description } = req.body;
+
+    const report = await Report.findById(reportId);
+    if (!report) {
+      return res.status(404).json({ message: "Report not found." });
+    }
+
+    report.timelineEvents.push({ eventName, description });
+    await report.save();
+
+    res.status(201).json({
+      message: "Timeline event added successfully!",
+      data: report.timelineEvents,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while adding timeline event." });
+  }
+};
+
+// GET all timeline events for a report
+export const getTimelineEvents = async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const report = await Report.findById(reportId).select("timelineEvents");
+
+    if (!report) {
+      return res.status(404).json({ message: "Report not found." });
+    }
+
+    res.status(200).json({
+      message: "Timeline events fetched successfully!",
+      data: report.timelineEvents.sort((a, b) => b.createdAt - a.createdAt), // Return newest first
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while fetching timeline events." });
   }
 };
 

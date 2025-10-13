@@ -1,16 +1,21 @@
 import mongoose from "mongoose";
 
+const timelineEventSchema = new mongoose.Schema({
+  eventName: { type: String, required: true },
+  description: { type: String },
+  createdAt: { type: Date, default: Date.now },
+});
+
 const reportSchema = new mongoose.Schema({
   project: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Project", // Corrected the ref to 'Project'
+    ref: "Project",
     required: true,
   },
   summary: {
     type: String,
     required: true,
   },
-  // --- NEW FIELDS ---
   riskPercentage: {
     type: Number,
     required: false,
@@ -31,19 +36,15 @@ const reportSchema = new mongoose.Schema({
       contractors: [String],
     },
   },
-
-    riskPredictions: {
+  riskPredictions: {
     cost: { type: Number },
     timeline: { type: Number },
     environmental: { type: Number },
   },
-  
   backgroundResearch: {
-    // For background research results
     type: String,
     required: false,
   },
-
   complianceScore: {
     type: Number,
   },
@@ -54,8 +55,6 @@ const reportSchema = new mongoose.Schema({
       justification: String,
     },
   ],
-
-  // --- NEW INCONSISTENCY FIELD ---
   inconsistencyFindings: [
     {
       finding: String,
@@ -64,27 +63,30 @@ const reportSchema = new mongoose.Schema({
       severity: String,
     },
   ],
-
-  // --- 💡 ADD THIS NEW FIELD ---
-  // This will store an array of IDs that point to documents in the 'Note' collection
   notes: [
     {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Note",
     },
   ],
-
-  // --- END NEW FIELDS ---
   originalFilename: {
     type: String,
     required: true,
   },
   status: {
     type: String,
-    // 💡 ADD "In Progress" TO THE LIST OF ALLOWED VALUES
-    enum: ["In-Progress", "Completed", "Failed"], 
+    enum: ["In-Progress", "Completed", "Failed"],
     required: true,
   },
+  // --- NEW FIELDS ---
+  progress: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100,
+  },
+  timelineEvents: [timelineEventSchema],
+  // --- END NEW FIELDS ---
   createdAt: {
     type: Date,
     default: Date.now,

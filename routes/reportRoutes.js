@@ -14,6 +14,8 @@ import {
   getEvaluationsOverTime, // 💡 IMPORT THE NEW CONTROLLER
   getFlaggedIssues, // 💡 IMPORT THE NEW CONTROLLER
   getRiskPredictions, // 💡 IMPORT THE NEW CONTROLLER
+  addTimelineEvent,    // <-- IMPORT NEW
+  getTimelineEvents,   // <-- IMPORT NEW
 } from "../controllers/reportController.js";
 
 const router = express.Router();
@@ -34,6 +36,10 @@ router.post(
 router.get("/:id", getReportById); // Read (Get one)
 router.patch("/:id", updateReport); // Update
 router.delete("/:id", deleteReport); // Delete
+
+// --- New Timeline Routes ---
+router.post("/:reportId/timeline", addTimelineEvent);
+router.get("/:reportId/timeline", getTimelineEvents);
 
 // --- Note CRUD ---
 router.post("/:reportId/notes", addNoteToReport); // Create
