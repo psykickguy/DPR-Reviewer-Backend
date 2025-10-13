@@ -358,3 +358,52 @@ export const detectInconsistencies = async (textToAnalyze) => {
     );
   }
 };
+
+// ... at the end of utils/aiService.js
+
+export const getReportSpecificChatResponse = async (userMessage, reportContext) => {
+  if (!process.env.A4F_API_KEY) {
+    throw new Error("A4F_API_KEY is not defined in the .env file.");
+  }
+  if (!userMessage || !reportContext) {
+    throw new Error("User message and report context cannot be empty.");
+  }
+
+  // A prompt that instructs the AI to be a helpful assistant but to *only* use the provided context.
+  const contextualPrompt = `
+    You are a helpful assistant for a document review application. Your task is to answer the user's question based *only* on the provided document text. Do not use any external knowledge or make up information. If the answer cannot be found in the document text, you must say "I cannot find the answer to that question in this document."
+
+    DOCUMENT TEXT:
+    """
+    ${reportContext}
+    """
+
+    USER'S QUESTION:
+    "${userMessage}"
+  `;
+
+  try {
+    const response = await fetch("https://api.a4f.co/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.A4F_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "provider-3/gpt-4o-mini",
+        messages: [{ role: "user", content: contextualPrompt }],
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(
+        `API request failed with status ${response.status}: ${errorData}`
+      );
+    }
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "No response content from AI.";
+  } catch (error) {
+    console.error("Error communicating with AI service:", error);
+    throw new Error("Failed to get response from the AI service.");
+  }
+};

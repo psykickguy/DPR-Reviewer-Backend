@@ -16,6 +16,11 @@ const reportSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+    // ADD THIS NEW FIELD
+  fullTextContent: {
+    type: String,
+    required: false,
+    },
   riskPercentage: {
     type: Number,
     required: false,

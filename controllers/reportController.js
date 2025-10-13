@@ -8,6 +8,7 @@ import {
   summarizeText,
   checkCompliance,
   detectInconsistencies,
+  getReportSpecificChatResponse,
 } from "../utils/aiService.js";
 
 // You would also need a web search utility for background checks
@@ -322,6 +323,8 @@ export const generateReport = async (req, res) => {
       originalFilename: req.file.originalname,
       status: "In-Progress",
       // --- SAVE NEW DATA ---
+      fullTextContent: textToProcess, 
+      // --- SAVE NEW DATA ---
       riskPercentage: analysisResult.riskPercentage,
       riskAnalysis: {
         clauses: analysisResult.clauses,
@@ -591,5 +594,32 @@ export const deleteNote = async (req, res) => {
     res.status(200).json({ message: "Note deleted successfully!" });
   } catch (error) {
     res.status(500).json({ message: "Server error while deleting note." });
+  }
+};
+
+// ADD THIS NEW CONTROLLER FUNCTION
+export const handleReportChat = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+
+    // 1. Find the report and its text content
+    const report = await Report.findById(id);
+    if (!report || !report.fullTextContent) {
+      return res.status(404).json({ message: "Report or its content not found." });
+    }
+
+    // 2. Get the AI response using the report's text as context
+    const aiResponse = await getReportSpecificChatResponse(message, report.fullTextContent);
+
+    // 3. Send the response back to the user
+    res.status(200).json({ reply: aiResponse });
+  } catch (error) {
+    console.error("Error in report chat:", error);
+    res.status(500).json({ error: "Server error during chat processing." });
   }
 };

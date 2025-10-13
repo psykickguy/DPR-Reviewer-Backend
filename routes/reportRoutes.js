@@ -16,6 +16,7 @@ import {
   getRiskPredictions, // 💡 IMPORT THE NEW CONTROLLER
   addTimelineEvent,    // <-- IMPORT NEW
   getTimelineEvents,   // <-- IMPORT NEW
+  handleReportChat,      // <-- IMPORT THE NEW CONTROLLER
 } from "../controllers/reportController.js";
 
 const router = express.Router();
@@ -36,6 +37,9 @@ router.post(
 router.get("/:id", getReportById); // Read (Get one)
 router.patch("/:id", updateReport); // Update
 router.delete("/:id", deleteReport); // Delete
+
+// --- Report-Specific Chat Route ---
+router.post("/:id/chat", handleReportChat); 
 
 // --- New Timeline Routes ---
 router.post("/:reportId/timeline", addTimelineEvent);
