@@ -407,3 +407,100 @@ export const getReportSpecificChatResponse = async (userMessage, reportContext) 
     throw new Error("Failed to get response from the AI service.");
   }
 };
+
+// ... (at the end of utils/aiService.js)
+
+export const predictRejectionChance = async (
+  newReport,
+  historicalReports
+) => {
+  if (!process.env.A4F_API_KEY) {
+    throw new Error("A4F_API_KEY is not defined in the .env file.");
+  }
+
+  // 1. Summarize the historical data into a concise format for the AI
+  const historicalDataSummary = historicalReports
+    .map((report) => {
+      return `
+      - A report with compliance score ${
+        report.complianceScore
+      } and a high-risk finding of '${
+        report.inconsistencyFindings.length > 0
+          ? report.inconsistencyFindings[0].finding
+          : "none"
+      }' was ${report.finalStatus}.
+    `;
+    })
+    .join("");
+
+  // 2. Summarize the key features of the new report
+  const newReportSummary = `
+    - Compliance Score: ${newReport.complianceScore}
+    - High-Risk Findings: ${
+      newReport.inconsistencyFindings.length > 0
+        ? newReport.inconsistencyFindings
+            .map((f) => f.finding)
+            .join(", ")
+        : "none"
+    }
+    - Overall Risk Percentage: ${newReport.riskPercentage}%
+  `;
+
+  // 3. Construct the final, detailed prompt
+  const predictionPrompt = `
+    You are an expert risk analyst. Your task is to predict the likelihood of a new Detailed Project Report (DPR) being rejected based on historical data.
+
+    **Historical Data Summary:**
+    I have a history of past reports. Here are the key characteristics of reports that were previously approved or rejected:
+    ${historicalDataSummary}
+
+    **New Report To Analyze:**
+    Here are the key metrics for the new report I want to get a prediction for:
+    ${newReportSummary}
+
+    **Your Task:**
+    Based on the patterns in the historical data, analyze the new report and provide a JSON response with your prediction. The JSON object must have one key: "rejectionChance", which is a number from 0 to 100 representing the percentage chance that this new report will be rejected.
+
+    Example Response:
+    {
+      "rejectionChance": 75
+    }
+  `;
+
+  // 4. Call the AI service with the prompt
+  try {
+    const response = await fetch("https://api.a4f.co/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.A4F_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "provider-3/gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an expert risk analyst. Your output must be a valid JSON object.",
+          },
+          { role: "user", content: predictionPrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(
+        `API request failed with status ${response.status}: ${errorData}`
+      );
+    }
+    const data = await response.json();
+    const rawContent = data.choices[0]?.message?.content;
+    const jsonString = rawContent.replace(/^```json\s*|```$/g, "");
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error("Error during historical prediction:", error);
+    throw new Error("Failed to get prediction from the AI service.");
+  }
+};

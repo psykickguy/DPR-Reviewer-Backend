@@ -83,7 +83,13 @@ const reportSchema = new mongoose.Schema({
     enum: ["In-Progress", "Completed", "Failed"],
     required: true,
   },
-  // --- NEW FIELDS ---
+
+  finalStatus: {
+    type: String,
+    enum: ['Approved', 'Rejected', 'Pending'],
+    default: 'Pending'
+  },
+    // --- NEW FIELDS ---
   progress: {
     type: Number,
     default: 0,

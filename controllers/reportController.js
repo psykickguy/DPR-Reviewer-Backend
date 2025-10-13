@@ -9,6 +9,7 @@ import {
   checkCompliance,
   detectInconsistencies,
   getReportSpecificChatResponse,
+  predictRejectionChance,
 } from "../utils/aiService.js";
 
 // You would also need a web search utility for background checks
@@ -466,6 +467,27 @@ export const deleteReport = async (req, res) => {
   }
 };
 
+// ... (at the end of reportController.js, after predictReportOutcome)
+
+// DEV-ONLY: Delete all reports and notes
+export const deleteAllReports = async (req, res) => {
+  try {
+    // We are in a development environment, so we can perform this action.
+    // Note: This does not delete files from Cloudinary, only the DB records.
+    const reportDeletion = await Report.deleteMany({});
+    const noteDeletion = await Note.deleteMany({});
+
+    res.status(200).json({
+      message: "All reports and notes have been deleted successfully.",
+      deletedReportsCount: reportDeletion.deletedCount,
+      deletedNotesCount: noteDeletion.deletedCount,
+    });
+  } catch (error) {
+    console.error("Error deleting all reports:", error);
+    res.status(500).json({ message: "Server error during bulk deletion." });
+  }
+};
+
 // ADD a timeline event to a report
 export const addTimelineEvent = async (req, res) => {
   try {
@@ -621,5 +643,41 @@ export const handleReportChat = async (req, res) => {
   } catch (error) {
     console.error("Error in report chat:", error);
     res.status(500).json({ error: "Server error during chat processing." });
+  }
+};
+
+
+export const predictReportOutcome = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const newReport = await Report.findById(id);
+    if (!newReport) {
+      return res.status(404).json({ message: "Report to be analyzed not found." });
+    }
+
+    const historicalReports = await Report.find({
+      finalStatus: { $in: ["Approved", "Rejected"] },
+      _id: { $ne: id }, // Exclude the current report from historical data
+    });
+
+    if (historicalReports.length === 0) {
+      return res.status(400).json({
+        message: "Not enough historical data to make a prediction.",
+        data: { rejectionChance: null }, // Send a clear response
+      });
+    }
+
+    // 3. Call the AI service with the new report and the historical context
+    const prediction = await predictRejectionChance(newReport, historicalReports);
+
+    // 4. Send the prediction back to the user
+    res.status(200).json({
+      message: "Prediction successful!",
+      data: prediction,
+    });
+  } catch (error) {
+    console.error("Error during outcome prediction:", error);
+    res.status(500).json({ message: "Server error during prediction." });
   }
 };
