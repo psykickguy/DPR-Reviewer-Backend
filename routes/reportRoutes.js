@@ -10,11 +10,20 @@ import {
   getNotesForReport,
   updateNote,
   deleteNote,
+  getDashboardStats, // 💡 IMPORT THE NEW CONTROLLER
+  getEvaluationsOverTime, // 💡 IMPORT THE NEW CONTROLLER
+  getFlaggedIssues, // 💡 IMPORT THE NEW CONTROLLER
+  getRiskPredictions, // 💡 IMPORT THE NEW CONTROLLER
 } from "../controllers/reportController.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// --- Dashboard Routes ---
+router.get("/stats", getDashboardStats); // 💡 ADD THE NEW STATS ROUTE
+router.get("/over-time", getEvaluationsOverTime); // 💡 ADD THE NEW TIME-SERIES ROUTE
+router.get("/flagged-issues", getFlaggedIssues); // 💡 ADD THE NEW FLAGGED ISSUES ROUTE
+router.get("/risk-predictions", getRiskPredictions); // 💡 ADD THE NEW ROUTE
 // --- Report Generation & CRUD ---
 router.get("/", getAllReports); // Read (Get all with filters)
 router.post(

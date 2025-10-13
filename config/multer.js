@@ -7,7 +7,7 @@ const storage = new CloudinaryStorage({
   params: {
     folder: "documents", // The folder name in your Cloudinary account
     resource_type: "raw", // To allow any file type (pdf, docx, etc.)
-    public_id: (req, file) => `${Date.now()}-${file.originalname}`,
+    public_id: (_req, file) => `${Date.now()}-${file.originalname}`,
   },
 });
 

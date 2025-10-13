@@ -96,11 +96,16 @@ export const analyzeDocument = async (textToAnalyze) => {
       ? textToAnalyze.substring(0, maxChars)
       : textToAnalyze;
 
+// Inside the analyzeDocument function...
+
   const analysisPrompt = `
     Analyze the following document text and provide a JSON response.
     Identify key clauses and categorize them by risk level.
     Extract financial data points like costs and quoted prices.
     Identify the primary contractor or company names mentioned.
+    
+    -- NEW INSTRUCTION --
+    Based on the overall context, also provide a risk score (0-100) for each of the following categories: 'Cost Overrun', 'Timeline Delay', and 'Environmental'.
 
     DOCUMENT TEXT:
     """
@@ -111,6 +116,14 @@ export const analyzeDocument = async (textToAnalyze) => {
     {
       "riskPercentage": <A number from 0 to 100 representing the overall risk>,
       "riskSummary": "<A brief summary of the key risks found>",
+      
+      // -- NEW JSON FIELD --
+      "riskPredictions": {
+        "cost": <A number from 0 to 100 for cost overrun risk>,
+        "timeline": <A number from 0 to 100 for timeline delay risk>,
+        "environmental": <A number from 0 to 100 for environmental risk>
+      },
+      
       "clauses": [
         {
           "text": "<The exact text of the risky or important clause>",
@@ -127,6 +140,7 @@ export const analyzeDocument = async (textToAnalyze) => {
       }
     }
   `;
+// ... the rest of the function remains the same
 
   try {
     const response = await fetch("https://api.a4f.co/v1/chat/completions", {

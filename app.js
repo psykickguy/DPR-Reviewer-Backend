@@ -19,13 +19,13 @@ app.use("/reports", reportRoutes);
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log("MongoDB connected successfully");
+    console.log("✅ MongoDB connected successfully 🚀");
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("MongoDB connection failed:", error);
+    console.error("❌ MongoDB connection failed:", error);
     process.exit(1);
   }
 };

@@ -31,6 +31,13 @@ const reportSchema = new mongoose.Schema({
       contractors: [String],
     },
   },
+
+    riskPredictions: {
+    cost: { type: Number },
+    timeline: { type: Number },
+    environmental: { type: Number },
+  },
+  
   backgroundResearch: {
     // For background research results
     type: String,
@@ -74,7 +81,8 @@ const reportSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Completed", "Failed"],
+    // 💡 ADD "In Progress" TO THE LIST OF ALLOWED VALUES
+    enum: ["In-Progress", "Completed", "Failed"], 
     required: true,
   },
   createdAt: {

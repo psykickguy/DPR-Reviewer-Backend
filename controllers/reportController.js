@@ -1,5 +1,6 @@
 import Report from "../models/reportModel.js";
 import Note from "../models/noteModel.js";
+import Project from "../models/projectModel.js"; // 💡 IMPORT PROJECT MODEL
 import { extractContent } from "../utils/textExtractor.js";
 // Import the new analyzer and the old summarizer
 import {
@@ -12,6 +13,257 @@ import {
 // You would also need a web search utility for background checks
 // For example, a new file `utils/webSearch.js`
 // import { performBackgroundSearch } from "../utils/webSearch.js";
+
+
+// --- NEW DASHBOARD STATS CONTROLLER ---
+// --- [REPLACE THE EXISTING getDashboardStats FUNCTION WITH THIS ONE] ---
+
+export const getDashboardStats = async (req, res) => {
+  try {
+    // Using Promise.all to run all database queries in parallel for better performance
+    const [
+      totalDprs,
+      completedEvaluations,
+      activeProjects,
+      avgCompletenessResult,
+    ] = await Promise.all([
+      Project.countDocuments(),
+      Report.countDocuments({ status: "Completed" }),
+      Report.countDocuments({ status: { $ne: "Completed" } }),
+      Report.aggregate([
+        {
+          // 💡 STAGE 1: Only consider reports that HAVE a complianceScore
+          $match: {
+            complianceScore: { $exists: true, $ne: null },
+          },
+        },
+        {
+          // 💡 STAGE 2: Group the remaining documents and calculate the average
+          $group: {
+            _id: null,
+            averageScore: { $avg: "$complianceScore" },
+          },
+        },
+      ]),
+    ]);
+
+    // 💡 SAFER HANDLING: Check if the aggregation result has any data.
+    // If it doesn't (because no reports have scores), default to 0.
+    const averageCompleteness =
+      avgCompletenessResult.length > 0 && avgCompletenessResult[0].averageScore
+        ? Math.round(avgCompletenessResult[0].averageScore)
+        : 0;
+
+    res.status(200).json({
+      message: "Dashboard stats fetched successfully!",
+      data: {
+        totalDprs,
+        completedEvaluations,
+        averageCompleteness,
+        activeProjects,
+      },
+    });
+  } catch (error) {
+    // This will now provide a more specific error in your server console
+    console.error("Error fetching dashboard stats:", error);
+    res
+      .status(500)
+      .json({ message: "Server error while fetching dashboard stats." });
+  }
+};
+
+// --- [THE REST OF THE FILE REMAINS THE SAME] ---
+
+// Add this new function to the reportController.js file.
+// A good place is right after the getDashboardStats function.
+
+export const getEvaluationsOverTime = async (req, res) => {
+  try {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const results = await Report.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: sixMonthsAgo },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
+          completed: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Completed"] }, 1, 0],
+            },
+          },
+          incomplete: {
+            $sum: {
+              $cond: [{ $ne: ["$status", "Completed"] }, 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $sort: { "_id.year": 1, "_id.month": 1 },
+      },
+    ]);
+
+    // Helper to format the aggregated data for the frontend chart
+    const monthNames = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+
+    const categories = [];
+    const completedData = [];
+    const incompleteData = [];
+
+    // Initialize the last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const monthIndex = d.getMonth();
+      const year = d.getFullYear();
+      
+      categories.push(monthNames[monthIndex]);
+      
+      const result = results.find(
+        (r) => r._id.year === year && r._id.month === monthIndex + 1
+      );
+
+      if (result) {
+        completedData.push(result.completed);
+        incompleteData.push(result.incomplete);
+      } else {
+        completedData.push(0);
+        incompleteData.push(0);
+      }
+    }
+
+    res.status(200).json({
+      message: "Evaluation time-series data fetched successfully!",
+      data: {
+        series: [
+          { name: "Completed", data: completedData },
+          { name: "Incomplete", data: incompleteData },
+        ],
+        categories: categories,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching evaluations over time:", error);
+    res
+      .status(500)
+      .json({ message: "Server error while fetching time-series data." });
+  }
+};
+
+// Add this new function to the reportController.js file.
+
+export const getFlaggedIssues = async (req, res) => {
+  try {
+    const flaggedIssues = await Report.aggregate([
+      // Stage 1: Deconstruct the inconsistencyFindings array field from the input documents to output a document for each element.
+      {
+        $unwind: "$inconsistencyFindings",
+      },
+      // Stage 2: Group input documents by the 'finding' title and 'severity' and count the occurrences of each.
+      {
+        $group: {
+          _id: {
+            issue: "$inconsistencyFindings.finding",
+            severity: "$inconsistencyFindings.severity",
+          },
+          count: { $sum: 1 },
+        },
+      },
+      // Stage 3: Reshape the grouped data to the desired format.
+      {
+        $project: {
+          _id: 0,
+          issue: "$_id.issue",
+          severity: "$_id.severity",
+          count: "$count",
+        },
+      },
+      // Stage 4: Sort the results by count in descending order to see the most common issues first.
+      {
+        $sort: { count: -1 },
+      },
+      // Stage 5: Limit the output to the top 5 most frequent issues.
+      {
+        $limit: 5,
+      },
+    ]);
+
+    res.status(200).json({
+      message: "Flagged issues fetched successfully!",
+      data: flaggedIssues,
+    });
+  } catch (error) {
+    console.error("Error fetching flagged issues:", error);
+    res
+      .status(500)
+      .json({ message: "Server error while fetching flagged issues." });
+  }
+};
+
+
+// Add this new function to the reportController.js file.
+// A good place is right after getFlaggedIssues.
+
+export const getRiskPredictions = async (req, res) => {
+  try {
+    const predictions = await Report.aggregate([
+      {
+        $group: {
+          _id: null, // Group all reports together
+          avgCost: { $avg: "$riskPredictions.cost" },
+          avgTimeline: { $avg: "$riskPredictions.timeline" },
+          avgEnvironmental: { $avg: "$riskPredictions.environmental" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          predictions: [
+            {
+              riskType: "Cost Overrun Risk",
+              averageScore: { $round: ["$avgCost", 0] },
+            },
+            {
+              riskType: "Timeline Risk",
+              averageScore: { $round: ["$avgTimeline", 0] },
+            },
+            {
+              riskType: "Environmental Risk",
+              averageScore: { $round: ["$avgEnvironmental", 0] },
+            },
+          ],
+        },
+      },
+    ]);
+
+    // Handle the case where there are no reports yet
+    const data = predictions.length > 0 ? predictions[0].predictions : [];
+
+    res.status(200).json({
+      message: "Risk predictions fetched successfully!",
+      data: data,
+    });
+  } catch (error) {
+    console.error("Error fetching risk predictions:", error);
+    res
+      .status(500)
+      .json({ message: "Server error while fetching risk predictions." });
+  }
+};
+
+// ... (the rest of your controller file)
+
 
 export const generateReport = async (req, res) => {
   try {
@@ -68,7 +320,7 @@ export const generateReport = async (req, res) => {
       project: projectId,
       summary: summary, // Keep the old summary
       originalFilename: req.file.originalname,
-      status: "Completed",
+      status: "In-Progress",
       // --- SAVE NEW DATA ---
       riskPercentage: analysisResult.riskPercentage,
       riskAnalysis: {
@@ -76,6 +328,8 @@ export const generateReport = async (req, res) => {
         financials: analysisResult.financials,
         entities: analysisResult.entities,
       },
+
+      riskPredictions: analysisResult.riskPredictions, 
       // --- SAVE NEW COMPLIANCE DATA ---
       complianceScore: complianceResult.complianceScore,
       complianceFindings: complianceResult.complianceFindings,
