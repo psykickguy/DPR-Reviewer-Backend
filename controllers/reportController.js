@@ -412,10 +412,11 @@ export const updateReport = async (req, res) => {
   try {
     const { id } = req.params;
     // Only allow specific fields to be updated to prevent unwanted changes
-    const { status, progress } = req.body;
+    const { status, progress ,finalStatus } = req.body;
     const updateData = {};
     if (status) updateData.status = status;
     if (progress !== undefined) updateData.progress = progress;
+    if (finalStatus) updateData.finalStatus = finalStatus; // <-- Add this line
 
 
     const updatedReport = await Report.findByIdAndUpdate(
